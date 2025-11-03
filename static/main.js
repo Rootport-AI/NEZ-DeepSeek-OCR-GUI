@@ -1,4 +1,4 @@
-﻿// static/main.js
+// static/main.js
 const fileInput = document.getElementById("fileInput");
 const dropzone = document.getElementById("dropzone");
 const runBtn = document.getElementById("runBtn");
@@ -35,14 +35,56 @@ function setStatus(msg) { statusEl.textContent = msg; }
 
 /* ---------- プレビュー表示 ---------- */
 function showPreview(file) {
+  const emptyEl = document.getElementById("previewEmpty");  
   if (!file) {
-    previewWrap.classList.add("hidden");
-    previewImg.src = "";
+    if (emptyEl) emptyEl.hidden = false;
+    if (previewImg) {
+      previewImg.src = "";
+      previewImg.hidden = true; // 画像未設定時はアイコン/altを出さない
+    }
     return;
   }
+  // 1024x1024以内に収まるようにプレビューだけ縮小（推論は元ファイルを使用）
   const url = URL.createObjectURL(file);
-  previewImg.src = url;
-  previewWrap.classList.remove("hidden");
+  const img = new Image();
+  img.onload = () => {
+    const maxSide = 1024;
+    const w = img.naturalWidth, h = img.naturalHeight;
+    let tw = w, th = h;
+    if (w > maxSide || h > maxSide) {
+      if (w >= h) { tw = maxSide; th = Math.round(h * (maxSide / w)); }
+      else { th = maxSide; tw = Math.round(w * (maxSide / h)); }
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = tw; canvas.height = th;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img, 0, 0, tw, th);
+    canvas.toBlob((blob) => {
+        if (!blob) {
+        previewImg.onload = () => {
+          if (emptyEl) emptyEl.hidden = true;
+          previewImg.hidden = false;
+          };
+        previewImg.src = url;
+        return;
+      }
+      const purl = URL.createObjectURL(blob);
+      previewImg.onload = () => { 
+        URL.revokeObjectURL(purl); 
+        previewImg.hidden = false; 
+      };
+      previewImg.src = purl;
+      if (emptyEl) emptyEl.hidden = true;
+      URL.revokeObjectURL(url);
+    }, "image/jpeg", 0.95);
+  };
+  img.onerror = () => { 
+    previewImg.src = url; 
+    if (emptyEl) emptyEl.hidden = true; 
+    previewImg.hidden = false; 
+  };
+  img.src = url;
 }
 
 /* ---------- Loader（実値をSSEで更新） ---------- */
@@ -60,21 +102,68 @@ function closeLoader() {
   setProgress(0);
 }
 
-/* ---------- ドラッグ&ドロップ ---------- */
-dropzone.addEventListener("click", () => fileInput.click());
-dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("dragover"); });
-dropzone.addEventListener("dragleave", () => { dropzone.classList.remove("dragover"); });
-dropzone.addEventListener("drop", (e) => {
+/* ---------- ドラッグ&ドロップ（全画面） ---------- */
+const overlay = document.getElementById("globalDropOverlay");
+const overlayNote = document.getElementById("overlayNote");
+const openFileBtn = document.getElementById("openFileBtn");
+
+if (openFileBtn) openFileBtn.addEventListener("click", () => fileInput.click());
+
+let dragCounter = 0;
+function isFileDrag(e) {
+  const dt = e.dataTransfer;
+  if (!dt) return false;
+  return Array.from(dt.types || []).includes("Files");
+}
+
+window.addEventListener("dragenter", (e) => {
+  if (!isFileDrag(e)) return;
   e.preventDefault();
-  dropzone.classList.remove("dragover");
-  const file = e.dataTransfer.files?.[0];
-  if (file) { currentFile = file; showPreview(file); }
-  updateButtons();
+  dragCounter++;
+  overlayNote.textContent = "";
+  overlay.hidden = false;
 });
+
+window.addEventListener("dragover", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+});
+
+window.addEventListener("dragleave", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  dragCounter = Math.max(0, dragCounter - 1);
+  if (dragCounter === 0) overlay.hidden = true;
+});
+
+window.addEventListener("drop", (e) => {
+  if (!isFileDrag(e)) return;
+  e.preventDefault();
+  const files = e.dataTransfer.files;
+  if (!files || files.length === 0) { overlay.hidden = true; return; }
+  if (files.length > 1) {
+    overlayNote.textContent = "複数のファイルがドロップされました。先頭の1枚のみ読み込みます。";
+  }
+  const file = files[0];
+  if (file && file.type && file.type.startsWith("image/")) {
+    currentFile = file; showPreview(file);
+    updateButtons();
+  }
+  // オーバーレイは少しだけ注釈を見せてから閉じる
+  setTimeout(() => { overlay.hidden = true; dragCounter = 0; }, overlayNote.textContent ? 900 : 0);
+});
+
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !overlay.hidden) {
+    overlay.hidden = true; dragCounter = 0;
+  }
+});
+
 fileInput.addEventListener("change", () => {
   const file = fileInput.files?.[0];
   if (file) { currentFile = file; showPreview(file); }
   updateButtons();
+  try { fileInput.value = ""; } catch {}
 });
 
 folderPathInput.addEventListener("input", updateButtons);
