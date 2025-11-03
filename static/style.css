@@ -61,13 +61,44 @@ h2 { margin-top: 0; font-size: 18px; }
 .dropzone.dragover { border-color: var(--accent); background: rgba(106,169,255,.08); }
 .filelabel { color: var(--accent); cursor: pointer; text-decoration: underline; }
 
-.controls { margin-top: 14px; display: grid; gap: 10px; }
+.controls { margin-top: 5px; display: grid; gap: 5px; }
 .controls textarea, .controls input[type="number"] {
   width: 100%; background: #0000; border: 1px solid var(--border);
   color: var(--fg); padding: 8px 10px; border-radius: 8px;
 }
+/* プロンプト欄はサイズ固定（ユーザーのドラッグでリサイズ不可） */
+#prompt {
+  resize: none;
+}
+
 .controls .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .check { display: flex; gap: 8px; align-items: center; }
+
+/* ===== 共通グリッド（.controls の外でも効くように） ===== */
+.grid {
+  display: grid;
+  gap: 10px;
+}
+/* フォルダ行：左を広く（入力欄）、右はボタン */
+.grid-folder {
+  grid-template-columns: 1fr auto;
+  align-items: end; /* ボタンを下端揃え */
+  margin-top: 10px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+}
+/* パラメータ行：2列×2行（base/image | crop/test） */
+.grid-2col {
+  grid-template-columns: repeat(2, 1fr);
+  align-items: end;
+  margin-top: 10px;
+}
+/* スマホ等では縦1列にフォールバック */
+@media (max-width: 980px) {
+  .grid-folder,
+  .grid-2col { grid-template-columns: 1fr; }
+}
 
 button {
   appearance: none; border: 1px solid var(--border);
@@ -137,8 +168,7 @@ button:disabled { opacity: .6; cursor: not-allowed; filter: grayscale(40%); }
 }
 
 /* プレビュー：枠内に必ず収める */
-.preview { margin-top: 12px; height: 360px; }
-@media (max-width: 980px) { .preview { height: 260px; } }
+.preview { margin-top: 12px; } /* 固定高さを撤廃：中身の合計高さに合わせる */
 .preview img{
   width: 100%;
   height: 100%;
@@ -148,9 +178,23 @@ button:disabled { opacity: .6; cursor: not-allowed; filter: grayscale(40%); }
   border: 1px solid var(--border);
 }
 
+/* モバイル時は preview-inner の高さのみ下げる（従来 260px を継承） */
+@media (max-width: 980px) {
+  .preview-inner { height: 260px; }
+}
+
+/* レイアウトの間延び/衝突回避のために余白を強化 */
+/* プレビュー枠の下に余白（下のフォームと衝突しないように） */
+.preview { margin-bottom: 0px; }
+/* プレビュー直下のアクション行（将来「ファイルを開く」ボタンを置く場合に備えた余白） */
+.preview-actions { margin-top: 8px; }
+/* プレビューとプロンプト群（.controls）との重なり防止 */
+.controls { margin-top: 5px; }
+
 /* プリセットボタン */
-.presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
-.preset-btn {
+.presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 0px; }
+.preset-btn,
+.openfile-btn {
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--fg);
@@ -159,7 +203,12 @@ button:disabled { opacity: .6; cursor: not-allowed; filter: grayscale(40%); }
   cursor: pointer;
   transition: box-shadow .15s ease, background .15s ease, border-color .15s ease;
 }
-.preset-btn:hover { outline: 2px solid rgba(99,230,181,.25); }
+.preset-btn:hover,
+.openfile-btn:hover { outline: 2px solid rgba(99,230,181,.25); }
+
+#runBtn {
+  margin-top: 10px;
+}
 
 /* ★B案：控えめな選択強調 */
 .preset-btn.active {
@@ -174,3 +223,38 @@ button:disabled { opacity: .6; cursor: not-allowed; filter: grayscale(40%); }
 
 /* アニメ */
 @keyframes spin { to { transform: rotate(360deg); } }
+/* 全画面ドロップ・オーバーレイ */
+.drop-overlay[hidden] { display: none !important; }
+.drop-overlay {
+  position: fixed; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,.5); /* 50% */
+  z-index: 9999;
+}
+.drop-overlay-inner {
+  background: var(--surface);
+  color: var(--fg);
+  padding: 28px 32px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 6px 24px rgba(0,0,0,.35);
+}
+.drop-overlay-inner .note { display:block; margin-top:8px; color: var(--muted); }
+
+/* プレビュー領域（空状態のメッセージ） */
+.preview-inner { position: relative; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); height: 360px; display:flex; align-items:center; justify-content:center; }
+.preview-inner img { max-width: 100%; max-height: 100%; object-fit: contain; }
+#previewImg[hidden] { display: none; } /* 未設定時はアイコン/alt非表示 */
+.preview-empty[hidden] { display: none; }
+.preview-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: .95rem; }
+.preview-actions { 
+  margin-top: 8px; 
+  display: flex;
+  justify-content: flex-end;
+}
+.preview-actions .small { font-size: .86rem; padding: 6px 10px; }
+
+/* 既存のドロップゾーン要素は非表示（デザイン統合のため） */
+#dropzone { display: none !important; }
+.filelabel { display: none !important; }
