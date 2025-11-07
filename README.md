@@ -20,7 +20,7 @@ https://huggingface.co/deepseek-ai/DeepSeek-OCR
   Windows 10でも動くかもしれませんが未検証です。Mac、Linuxは非対応です。
 
 - **GPU:** RTX 4070 Ti SUPER  
-  現状ではVRAM 12GB以上のGPUが推奨です。低VRAMマシンやCPU演算は、将来的に対応するかも。
+  現状ではVRAM 12GB以上のCUDA対応GPU（※基本的にはNVIDIA製GPU）が必須です。低VRAMマシンやCPU演算は、将来的に対応するかも。
 
 - **使用言語:** Python 3.10  
   別途インストールが必要です（下記参照）。
